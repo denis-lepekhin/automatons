@@ -17,18 +17,29 @@ public abstract class AutomatonScheduler {
      *            units of delay - are scheduler-dependent (though usually
      *            milliseconds)
      */
-    public abstract void submit(final Runnable runnable, final long delay);
+    public abstract void submit(final Runnable runnable, final long delay, TimeUnit unit);
+    
+    
+    public abstract Executor futuresExecutor();
+    
+    
+    
+    
+    
     
     public static AutomatonScheduler fromExecutor(final Executor exec) {
         return fromExecutor(exec, null);
     }
-
+    
     public static AutomatonScheduler fromExecutor(final Executor exec, @Nullable TimeUnit _timeUnits) {
         final ScheduledExecutorService sched = (exec instanceof ScheduledExecutorService) ? (ScheduledExecutorService) exec
                 : null;
-        final TimeUnit timeUnits = _timeUnits == null ? TimeUnit.MILLISECONDS : _timeUnits;
         return new AutomatonScheduler() {
-            @Override public void submit(Runnable runnable, long delay) {
+            @Override public Executor futuresExecutor() {
+                return exec;
+            }
+            
+            @Override public void submit(Runnable runnable, long delay, TimeUnit unit) {
                 assert delay >= 0;
                 if (delay == 0) {
                     exec.execute(runnable);
@@ -37,7 +48,7 @@ public abstract class AutomatonScheduler {
                         throw new IllegalStateException("scheduling is not supported by this executor type: " + 
                                 exec.getClass());
                     }
-                    sched.schedule(runnable, delay, timeUnits);
+                    sched.schedule(runnable, delay, unit);
                 }
             }
         };

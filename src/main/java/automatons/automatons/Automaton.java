@@ -1,5 +1,7 @@
 package automatons.automatons;
 
+import java.util.concurrent.TimeUnit;
+
 import automatons.automatons.sched.AutomatonScheduler;
 
 import com.google.common.util.concurrent.ListenableFuture;
@@ -24,8 +26,9 @@ public interface Automaton<S> {
 
         /**
          * how old was automaton when it has stopped;
+         * nano seconds (ticker)
          */
-        long getAge();
+        long getAge(TimeUnit unit);
 
         @Nullable S getLastState();
     }
@@ -56,9 +59,9 @@ public interface Automaton<S> {
     /**
      * effective ONLY before start()
      * 
-     * @param maxAge null means age is unbounded (usually milliseconds, but depends on a ticker);
+     * @param maxAge nanoseconds (uses ticker internally) (null means age is unbounded ();
      */
-    void setMaxAge(@Nullable Long maxAge);
+    void setMaxAge(long maxAge, TimeUnit unit);
 
     /**
      * can automaton be started again after it has stopped;

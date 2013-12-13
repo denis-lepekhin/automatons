@@ -8,6 +8,8 @@ import static java.util.concurrent.Executors.newScheduledThreadPool;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+import java.util.concurrent.TimeUnit;
+
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -198,7 +200,7 @@ public class TestAutomaton {
         };
 
         RandomAutomaton a = RandomAutomaton.builder()
-                .maxAge(20000L) // 20 sec
+                .maxAge(20, TimeUnit.SECONDS) // 20 sec
                 .randomizer(Randomizers.uniform())
                 .jumpsBegin(stateA)
                 .jump(stateA, stateB).maybe(Pab).act(print).delay(delay)
@@ -222,7 +224,7 @@ public class TestAutomaton {
         final double Paa = 0.1; // the rest; i.e. 1 - Pab - Pac
         RandomAutomaton a = RandomAutomaton
                 .builder()
-                .maxAge(20000L) // 20 sec
+                .maxAge(20L, TimeUnit.SECONDS) // 20 sec
                 .randomizer(Randomizers.uniform())
                 .jumpsBegin(stateA)
                 .jump(stateA, stateB).when(new Predicate<RandomAutomaton>() {

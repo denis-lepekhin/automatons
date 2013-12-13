@@ -142,7 +142,7 @@ public class JumpAutomaton<S> extends AbstractAutomaton<S> {
                 action.action(automaton, source, target);
             }
             if (delay != null) {
-                return automaton.next(target, TimeUnit.MILLISECONDS, delay.apply(automaton));
+                return automaton.next(target, delay.apply(automaton));
             } else {
                 return automaton.next(target);
             }
