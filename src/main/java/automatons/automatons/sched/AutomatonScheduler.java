@@ -27,11 +27,8 @@ public abstract class AutomatonScheduler {
     
     
     
-    public static AutomatonScheduler fromExecutor(final Executor exec) {
-        return fromExecutor(exec, null);
-    }
     
-    public static AutomatonScheduler fromExecutor(final Executor exec, @Nullable TimeUnit _timeUnits) {
+    public static AutomatonScheduler fromExecutor(final Executor exec) {
         final ScheduledExecutorService sched = (exec instanceof ScheduledExecutorService) ? (ScheduledExecutorService) exec
                 : null;
         return new AutomatonScheduler() {
@@ -52,6 +49,5 @@ public abstract class AutomatonScheduler {
                 }
             }
         };
-        
     }
 }

@@ -304,7 +304,7 @@ public abstract class AbstractAutomaton<S> implements Automaton<S> {
             afterStep(step(currentState));
             if (asyncStepFuture == null) {
                 // sync step
-                sched.submit(runnableContinuation, currentDelay, TimeUnit.MILLISECONDS);
+                sched.submit(runnableContinuation, currentDelay, currentDelayUnit);
             } else {
                 // async step
                 final ListenableFuture<?> asyncStepFuture = this.asyncStepFuture;
@@ -314,17 +314,14 @@ public abstract class AbstractAutomaton<S> implements Automaton<S> {
 
                     @Override public void onSuccess(Object result) {
                         //todo code duplication 
-                        asyncStepHandler = null;
                         beforeStep();
                         afterStep(handler.apply(result));
                         continueExecution(sched);
                     }
 
                     @Override public void onFailure(Throwable t) {
-                        
                         if (handler instanceof FunctionWithError) {
                             //todo code duplication 
-                            asyncStepHandler = null;
                             beforeStep();
                             afterStep(((FunctionWithError<Object, StepResult>)handler).error(t));
                             continueExecution(sched);
