@@ -14,8 +14,10 @@ import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nullable;
 
+import static automatons.automatons.utility.NanoTimes.isBefore;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.base.Preconditions.checkState;
 
 /**
  * Automaton is a state machine; It consists of states and steps(actions). Each
@@ -42,18 +44,22 @@ import static com.google.common.base.Preconditions.checkNotNull;
  */
 public abstract class AbstractAutomaton<S> implements Automaton<S> {
     private static final Logger log = LoggerFactory.getLogger(AbstractAutomaton.class);
+    
+    public static final long JOIN_PSEUDO_DELAY = -1;
+    
     // core automaton state(step) variables {
     
     private @Nullable S currentState;
-    private @Nullable long currentDelay;
-    private @Nullable TimeUnit currentDelayUnit;
-    private @Nullable ListenableFuture<?> asyncStepFuture;
-    private @Nullable Function<?, StepResult> asyncStepHandler;
+    private long currentDelay; 
+    private TimeUnit currentDelayUnit;
+    private @Nullable ListenableFuture<?> stepFuture;
+    private @Nullable Function<?, StepResult> stepFutureHandler;
     private @Nullable final String name;
     
     // }
 
-    private boolean stopFlag;
+    private volatile boolean stopFlag;
+    private final boolean supportsManualStop;
     private volatile @Nullable SettableFuture<StopDescriptionImpl> stopFuture;
     private long nextCallCount;
     private @Nullable Long maxAge;
@@ -63,12 +69,15 @@ public abstract class AbstractAutomaton<S> implements Automaton<S> {
     private @Nullable ListenableFuture<?> deffered;
     private final PartialFunction<S, ? extends AbstractStep<AbstractAutomaton<S>>> statesFunction;
     private AutomatonScheduler currentSched;
-    protected final Ticker ticker;
-
+    private final Ticker ticker;
+    protected final TimeUnit defaulDelaytUnit;
+    
     @SuppressWarnings({ "unchecked", "rawtypes" }) protected AbstractAutomaton(
             BuilderBase<? extends BuilderBase<?, ?, ?>, S, ? extends AbstractAutomaton<S>> b) {
         this.maxAge = b.maxAge;
         this.ticker = b.ticker;
+        this.defaulDelaytUnit = b.defaultUnit;
+        this.supportsManualStop = b.supportsManualStop;
         this.initialState = checkNotNull(b.initialState, "initialState?");
         this.statesFunction = Objects.firstNonNull(b.statesFuntcion, (PartialFunction) defaultStatesFunction);
         this.name = b.name;
@@ -93,6 +102,14 @@ public abstract class AbstractAutomaton<S> implements Automaton<S> {
     @Override public boolean isRestartable() {
         return true;
     }
+    
+    /**
+     * @return ticker value (nano seconds)
+     */
+    public final long currentClock() {
+    	return ticker.read();
+    }
+   
 
     /**
      * you can redefine step method to use switch-case instead of
@@ -106,7 +123,7 @@ public abstract class AbstractAutomaton<S> implements Automaton<S> {
             return theStep.step(this);
         } else if (step instanceof AsyncStep) {
             @SuppressWarnings("unchecked") final AsyncStep<AbstractAutomaton<S>, Object> theStep = (AsyncStep<AbstractAutomaton<S>, Object>) step;
-            return defer(theStep.future(this), theStep.asHandler(this));
+            return nextWait(theStep.future(this), theStep.asHandler(this));
         } else {
             throw errorInCurrentState("no other step kinds should be defined");
         }
@@ -130,8 +147,8 @@ public abstract class AbstractAutomaton<S> implements Automaton<S> {
     }
 
     private void notifyStop(StopReason reason, @Nullable Throwable error) {
-        asyncStepFuture = null;
-        asyncStepHandler = null;
+        stepFuture = null;
+        stepFutureHandler = null;
         try {
             onStopped(reason, error);
         } finally {
@@ -161,13 +178,13 @@ public abstract class AbstractAutomaton<S> implements Automaton<S> {
         currentState = nextState;
         currentDelay = delay;
         currentDelayUnit = unit;
-        asyncStepFuture = null;
-        asyncStepHandler = null;
+        stepFuture = null;
+        stepFutureHandler = null;
         return StepResult.OK;
     }
     
     protected final StepResult next(@Nullable S nextState, long delay) {
-       return next(nextState, delay, TimeUnit.MILLISECONDS);
+       return next(nextState, delay, defaulDelaytUnit);
     }
 
     /**
@@ -179,6 +196,10 @@ public abstract class AbstractAutomaton<S> implements Automaton<S> {
 
     protected final StepResult next(S nextState) {
         return next(nextState, 0);
+    }
+    
+    protected final StepResult nextJoin(S nextState) {
+        return next(nextState, JOIN_PSEUDO_DELAY);
     }
 
     /**
@@ -198,11 +219,11 @@ public abstract class AbstractAutomaton<S> implements Automaton<S> {
     /**
      * "next" function for async step;
      */
-    protected final <T> StepResult defer(ListenableFuture<T> future, Function<T, StepResult> handler) {
+    protected final <T> StepResult nextWait(ListenableFuture<T> future, Function<T, StepResult> handler) {
         nextCallCount++;
         currentDelay = 0;
-        this.asyncStepFuture = future;
-        this.asyncStepHandler = handler;
+        this.stepFuture = future;
+        this.stepFutureHandler = handler;
         return StepResult.OK;
     }
 
@@ -225,7 +246,7 @@ public abstract class AbstractAutomaton<S> implements Automaton<S> {
 
     private final Runnable runnableContinuation = new Runnable() {
         @Override public void run() {
-            continueExecution(currentSched);
+            continueExecution(currentSched, true);
         }
     };
 
@@ -246,14 +267,14 @@ public abstract class AbstractAutomaton<S> implements Automaton<S> {
         if (maxAge != null) {
             maxTime = startTime + maxAge;
         }
-        continueExecution(sched);
+        continueExecution(sched, true);
         return stopFuture;
     }
 
     @Override public final ListenableFuture<? extends StopDescription<S>> stop() {
+    	checkState(supportsManualStop, "manual stop must be enabled");
         checkAutomaton(stopFuture != null, "not started");
         stopFlag = true;
-        stopFuture = stopFuture; // mem visibility(!);
         return stopFuture;
     }
 
@@ -279,13 +300,12 @@ public abstract class AbstractAutomaton<S> implements Automaton<S> {
     /**
      * Core automaton logic;
      */
-    final void continueExecution(final AutomatonScheduler sched) {
-        final S currentState = this.currentState;
+    final void continueExecution(final AutomatonScheduler sched, final boolean doStep) {
         if (currentState != null) {
             checkStateBelongsAutomaton(currentState);
         }
         try {
-            if (stopFlag) {
+            if (supportsManualStop && stopFlag) {
                 notifyStop(StopReason.MANUAL, null);
                 return;
             }
@@ -294,37 +314,45 @@ public abstract class AbstractAutomaton<S> implements Automaton<S> {
                 notifyStop(StopReason.NATURAL, null);
                 return;
             }
-            // TODO use Ticker instead currentTimeMillis?
-            if (maxTime != null && maxTime - ticker.read() < 0) {
+            
+            if (maxTime != null && isBefore(maxTime, currentClock())) {
                 notifyStop(StopReason.AGE, null);
                 return;
             }
-
-            beforeStep();
-            afterStep(step(currentState));
-            if (asyncStepFuture == null) {
-                // sync step
+            if (doStep) {
+            	beforeStep();
+            	afterStep(step(currentState));
+            }
+            
+            while (currentDelay < 0) {
+            	assert currentDelay == JOIN_PSEUDO_DELAY;
+            	// join steps;
+            	beforeStep();
+            	afterStep(step(currentState));
+            }
+            
+            if (stepFuture == null) {
+                // normal step
                 sched.submit(runnableContinuation, currentDelay, currentDelayUnit);
             } else {
-                // async step
-                final ListenableFuture<?> asyncStepFuture = this.asyncStepFuture;
-                this.asyncStepFuture = null;
-                @SuppressWarnings("unchecked") final Function<Object, StepResult> handler = (Function<Object, StepResult>) asyncStepHandler;
-                Futures.addCallback(asyncStepFuture, new FutureCallback<Object>() {
+                // wait step
+                final ListenableFuture<?> future = this.stepFuture;
+                @SuppressWarnings("unchecked") final Function<Object, StepResult> handler = (Function<Object, StepResult>) stepFutureHandler;
+                this.stepFuture = null;
+                this.stepFutureHandler = null;
+                Futures.addCallback(future, new FutureCallback<Object>() {
 
                     @Override public void onSuccess(Object result) {
-                        //todo code duplication 
-                        beforeStep();
+                    	beforeStep();
                         afterStep(handler.apply(result));
-                        continueExecution(sched);
+                        continueExecution(sched, false);
                     }
 
                     @Override public void onFailure(Throwable t) {
                         if (handler instanceof FunctionWithError) {
-                            //todo code duplication 
                             beforeStep();
                             afterStep(((FunctionWithError<Object, StepResult>)handler).error(t));
-                            continueExecution(sched);
+                            continueExecution(sched, false);
                         } else {
                             onError(currentState, t);
                         }
@@ -333,13 +361,13 @@ public abstract class AbstractAutomaton<S> implements Automaton<S> {
             }
         } catch (AutomatonStateException ase) {
             // non-recoverable
-            log.debug("Automaton inner logic disaster", ase);
+            log.error("Automaton inner logic disaster", ase);
             notifyStop(StopReason.ERROR, ase);
         } catch (Throwable error) {
             onError(currentState, error);
             if (getCurrentState() != null) {
                 // if error was recovered;
-                continueExecution(sched);
+                continueExecution(sched, true);
             }
         }
 
@@ -388,6 +416,8 @@ public abstract class AbstractAutomaton<S> implements Automaton<S> {
         PartialFunction<S, ? extends AbstractStep<A>> statesFuntcion;
         String name;
         Ticker ticker = Ticker.systemTicker();
+        TimeUnit defaultUnit = TimeUnit.MILLISECONDS;
+        boolean supportsManualStop;
 
         protected BuilderBase(S initialState) {
             this.initialState = initialState;
@@ -414,6 +444,16 @@ public abstract class AbstractAutomaton<S> implements Automaton<S> {
         public final This ticker(Ticker ticker) {
             this.ticker = ticker;
             return getThis();
+        }
+        
+        public final This defaultDelayUnit(TimeUnit unit) {
+        	this.defaultUnit = unit;
+        	return getThis();
+        }
+        
+        public final This enableManualStop() {
+        	this.supportsManualStop = true;
+        	return getThis();
         }
         
         // unstable api - may change in fututure. too abstract...
@@ -472,4 +512,8 @@ public abstract class AbstractAutomaton<S> implements Automaton<S> {
     public String toString() {
         return "[ " + super.toString() + " name: " + name + "]";
     }
+    
+    public static void main(String[] args) {
+		System.out.println("NANOTIME " + System.nanoTime() + "=" + System.currentTimeMillis());
+	}
 }
