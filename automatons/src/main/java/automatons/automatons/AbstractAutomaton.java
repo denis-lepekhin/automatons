@@ -54,10 +54,9 @@ public abstract class AbstractAutomaton<S> implements Automaton<S> {
     private TimeUnit currentDelayUnit;
     private @Nullable ListenableFuture<?> stepFuture;
     private @Nullable Function<?, StepResult> stepFutureHandler;
-    private @Nullable final String name;
-    
     // }
 
+    private @Nullable final String name;
     private volatile boolean stopFlag;
     private final boolean supportsManualStop;
     private volatile @Nullable SettableFuture<StopDescriptionImpl> stopFuture;
