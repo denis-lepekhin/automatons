@@ -75,7 +75,7 @@ public class JumpAutomaton<S> extends AbstractAutomaton<S> {
         public abstract void stepWithJump(A self);
     }
 
-    public static abstract class AsyncStepWithJump<A extends JumpAutomaton<?>, V> extends AsyncStep<A, V> {
+    public static abstract class AsyncStepWithJump<A extends JumpAutomaton<?>, V> extends ReactStep<A, V> {
         @Override public final AbstractAutomaton.StepResult step(A self, V result) {
             stepWithJump(self, result);
             return self.nextJump();

@@ -30,7 +30,7 @@ import static com.google.common.base.Preconditions.checkState;
  * Also note, that "step" of AbstractAutomaton is also very abstract, it's the
  * black box function that returns the next state; <br>
  * AbstractAutomaton supports simple/synch steps {@link Step} and async steps
- * {@link AsyncStep}; AsyncSteps are used when automaton live depends on
+ * {@link ReactStep}; AsyncSteps are used when automaton live depends on
  * external events (such as network/io) <br>
  * To describe automaton step - you either override step() method [less syntax,
  * more concise] or pass your own statesFunction, default statesFunction
@@ -120,8 +120,8 @@ public abstract class AbstractAutomaton<S> implements Automaton<S> {
         if (step instanceof Step) {
             final Step<AbstractAutomaton<S>> theStep = (Step<AbstractAutomaton<S>>) step;
             return theStep.step(this);
-        } else if (step instanceof AsyncStep) {
-            @SuppressWarnings("unchecked") final AsyncStep<AbstractAutomaton<S>, Object> theStep = (AsyncStep<AbstractAutomaton<S>, Object>) step;
+        } else if (step instanceof ReactStep) {
+            @SuppressWarnings("unchecked") final ReactStep<AbstractAutomaton<S>, Object> theStep = (ReactStep<AbstractAutomaton<S>, Object>) step;
             return nextReact(theStep.future(this), theStep.asHandler(this));
         } else {
             throw errorInCurrentState("no other step kinds should be defined");
@@ -479,7 +479,7 @@ public abstract class AbstractAutomaton<S> implements Automaton<S> {
         public abstract StepResult step(A self);
     }
 
-    public abstract static class AsyncStep<A extends AbstractAutomaton<?>, V> extends AbstractStep<A> {
+    public abstract static class ReactStep<A extends AbstractAutomaton<?>, V> extends AbstractStep<A> {
         public abstract ListenableFuture<V> future(A self);
 
         public abstract StepResult step(A self, V result);
