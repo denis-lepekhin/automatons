@@ -123,7 +123,7 @@ public abstract class AbstractAutomaton<S> implements Automaton<S> {
             return theStep.step(this);
         } else if (step instanceof AsyncStep) {
             @SuppressWarnings("unchecked") final AsyncStep<AbstractAutomaton<S>, Object> theStep = (AsyncStep<AbstractAutomaton<S>, Object>) step;
-            return nextWait(theStep.future(this), theStep.asHandler(this));
+            return nextReact(theStep.future(this), theStep.asHandler(this));
         } else {
             throw errorInCurrentState("no other step kinds should be defined");
         }
@@ -171,7 +171,8 @@ public abstract class AbstractAutomaton<S> implements Automaton<S> {
     // / return nextXXXX();
 
     /**
-     * main sync "next" method;
+     * main "next" method;
+     * navigates to some other automaton state
      */
     protected final StepResult next(@Nullable S nextState, long delay, TimeUnit unit) {
         nextCallCount++;
@@ -191,13 +192,18 @@ public abstract class AbstractAutomaton<S> implements Automaton<S> {
      * next state = null, stops the automaton; similar to next(null);
      */
     protected final StepResult nextEnd() {
-        return next(null, 0);
+        return next(null);
     }
 
     protected final StepResult next(S nextState) {
         return next(nextState, 0);
     }
     
+    /**
+     * 
+     * @param nextState will be run in the same runnable (same thread)
+     * @return
+     */
     protected final StepResult nextJoin(S nextState) {
         return next(nextState, JOIN_PSEUDO_DELAY);
     }
@@ -212,9 +218,10 @@ public abstract class AbstractAutomaton<S> implements Automaton<S> {
     }
 
     /**
-     * "next" function for async step;
+     * This method links automaton to the world of external events;
+     * @param handler can also be {@link FunctionWithError} if you want to handle errors
      */
-    protected final <T> StepResult nextWait(ListenableFuture<T> future, Function<T, StepResult> handler) {
+    protected final <T> StepResult nextReact(ListenableFuture<T> future, Function<T, StepResult> handler) {
         nextCallCount++;
         currentDelay = 0;
         this.stepFuture = future;

@@ -40,7 +40,7 @@ public class TestWaitJoin {
 			switch (currentState) {
 			case 1: {
 				out.println("1");
-				return nextWait(someFuture, new Function<String, StepResult>() {
+				return nextReact(someFuture, new Function<String, StepResult>() {
 					@Override public StepResult apply(String input) {
 						out.println("input" + input);
 						a++;
