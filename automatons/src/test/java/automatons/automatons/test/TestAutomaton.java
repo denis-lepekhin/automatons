@@ -1,9 +1,9 @@
-package com.kamagames.automaton.test;
+package automatons.automatons.test;
 
 import static automatons.automatons.JumpAutomaton.toDelay;
-import static com.kamagames.automaton.test.TestAutomaton.RandomAutomaton.State.stateA;
-import static com.kamagames.automaton.test.TestAutomaton.RandomAutomaton.State.stateB;
-import static com.kamagames.automaton.test.TestAutomaton.RandomAutomaton.State.stateC;
+import static automatons.automatons.test.TestAutomaton.RandomAutomaton.State.stateA;
+import static automatons.automatons.test.TestAutomaton.RandomAutomaton.State.stateB;
+import static automatons.automatons.test.TestAutomaton.RandomAutomaton.State.stateC;
 import static java.util.concurrent.Executors.newScheduledThreadPool;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -22,12 +22,12 @@ import automatons.automatons.JumpAction;
 import automatons.automatons.JumpAutomaton;
 import automatons.automatons.random.Randomizers;
 import automatons.automatons.sched.AutomatonScheduler;
+import automatons.automatons.test.TestAutomaton.RandomAutomaton.State;
 import automatons.automatons.utility.Intervals;
 import automatons.automatons.utility.LongFunction;
 
 import com.google.common.base.Predicate;
 import com.google.common.base.Supplier;
-import com.kamagames.automaton.test.TestAutomaton.RandomAutomaton.State;
 
 
 public class TestAutomaton {

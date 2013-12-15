@@ -202,18 +202,13 @@ public abstract class AbstractAutomaton<S> implements Automaton<S> {
         return next(nextState, JOIN_PSEUDO_DELAY);
     }
 
-    /**
-     * same state with delay (loop with sleep btw iterations)
-     */
-    protected final StepResult next(long delay) {
-        return next(currentState, delay);
-    }
-
-    /**
-     * same state without delay (loop)
-     */
-    protected final StepResult next() {
+    
+    protected final StepResult nextSameState() {
         return next(currentState);
+    }
+    
+    protected final StepResult nextJoinSameState() {
+        return nextJoin(currentState);
     }
 
     /**
