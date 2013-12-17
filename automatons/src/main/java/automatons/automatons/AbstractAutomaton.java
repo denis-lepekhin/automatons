@@ -402,6 +402,12 @@ public abstract class AbstractAutomaton<S> implements Automaton<S> {
         @Override public @Nullable S getLastState() {
             return lastState;
         }
+        @Override public String toString() {
+            return "StopDescriptionImpl [error=" + error + ", reason=" + reason + ", age=" + age + ", lastState="
+                    + lastState + "]";
+        }
+        
+        
     }
 
     // ensure that client will never be able to write his/her own nextXXXX()
